@@ -25,13 +25,13 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Validate CA files exist
-if [[ ! -f "$CA_DIR/rootCA.crt.pem" ]]; then
-    echo "Error: CA certificate not found at $CA_DIR/rootCA.crt.pem"
+if [[ ! -f "$CA_DIR/rootCA.crt" ]]; then
+    echo "Error: CA certificate not found at $CA_DIR/rootCA.crt"
     exit 1
 fi
 
-if [[ ! -f "$CA_DIR/private/rootCA.key.pem" ]]; then
-    echo "Error: CA private key not found at $CA_DIR/private/rootCA.key.pem"
+if [[ ! -f "$CA_DIR/private/rootCA.key" ]]; then
+    echo "Error: CA private key not found at $CA_DIR/private/rootCA.key"
     exit 1
 fi
 
@@ -94,7 +94,7 @@ NGINX_CONFIG="$NGINX_SITES_AVAILABLE/$DOMAIN"
 ENABLED_LINK="$NGINX_SITES_ENABLED/$DOMAIN"
 
 # === OVERWRITE CHECK =========================================================
-if [[ -e "$CERT_DIR/$DOMAIN.crt.pem" || -e "$CERT_DIR/$DOMAIN.key.pem" ]]; then
+if [[ -e "$CERT_DIR/$DOMAIN.crt" || -e "$CERT_DIR/$DOMAIN.key" ]]; then
     echo "Warning: A certificate for $DOMAIN already exists."
     read -rp "Do you want to overwrite it? [y/N]: " CONFIRM
     if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
@@ -108,19 +108,19 @@ mkdir -p "$CERT_DIR"
 cd "$CERT_DIR" || exit 1
 
 echo "Generating private key..."
-openssl genrsa -out "$DOMAIN.key.pem" 2048
+openssl genrsa -out "$DOMAIN.key" 2048
 
 echo "Generating CSR..."
-openssl req -new -key "$DOMAIN.key.pem" \
-    -out "$DOMAIN.csr.pem" \
+openssl req -new -key "$DOMAIN.key" \
+    -out "$DOMAIN.csr" \
     -subj "/C=$COUNTRY/ST=$STATE/O=$ORG/CN=$DOMAIN"
 
 echo "Signing certificate with local CA..."
-openssl x509 -req -in "$DOMAIN.csr.pem" \
-    -CA "$CA_DIR/rootCA.crt.pem" \
-    -CAkey "$CA_DIR/private/rootCA.key.pem" \
+openssl x509 -req -in "$DOMAIN.csr" \
+    -CA "$CA_DIR/rootCA.crt" \
+    -CAkey "$CA_DIR/private/rootCA.key" \
     -CAcreateserial \
-    -out "$DOMAIN.crt.pem" \
+    -out "$DOMAIN.crt" \
     -days "$DAYS_VALID" -sha256 \
     -extensions v3_req \
     -extfile <(cat <<EOF
@@ -133,7 +133,7 @@ EOF
 )
 
 # Clean up CSR (no longer needed)
-rm -f "$DOMAIN.csr.pem"
+rm -f "$DOMAIN.csr"
 
 # === CREATE NGINX CONFIG =====================================================
 echo "Writing Nginx config to: $NGINX_CONFIG"
@@ -150,8 +150,8 @@ server {
     server_name $DOMAIN;
 
     # SSL Certificate
-    ssl_certificate     $CERT_DIR/$DOMAIN.crt.pem;
-    ssl_certificate_key $CERT_DIR/$DOMAIN.key.pem;
+    ssl_certificate     $CERT_DIR/$DOMAIN.crt;
+    ssl_certificate_key $CERT_DIR/$DOMAIN.key;
 
     # SSL Hardening
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -163,7 +163,7 @@ server {
     add_header Strict-Transport-Security "max-age=31536000" always;
 
     location / {
-        proxy_pass $PROXY_PASS/;
+        proxy_pass $PROXY_PASS;
 
         # Proxy Headers
         proxy_set_header Host \$host;
@@ -194,6 +194,6 @@ nginx -t && systemctl reload nginx
 # === DONE ====================================================================
 echo ""
 echo "Done! Site available at https://$DOMAIN"
-echo "  Cert:  $CERT_DIR/$DOMAIN.crt.pem"
-echo "  Key:   $CERT_DIR/$DOMAIN.key.pem"
+echo "  Cert:  $CERT_DIR/$DOMAIN.crt"
+echo "  Key:   $CERT_DIR/$DOMAIN.key"
 echo "  Nginx: $NGINX_CONFIG"
