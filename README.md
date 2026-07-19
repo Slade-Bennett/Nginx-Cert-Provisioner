@@ -71,7 +71,7 @@ For a domain like `uptimekuma.local`, the script creates:
 
 This repo includes a `Jenkinsfile` that lints and smoke-tests the script on every push. It expects:
 
-- A worker node labeled `linux worker` with `bash`, `git`, and passwordless `sudo` scoped to a couple of fixed helper scripts (see below) and to `issue-local-cert.sh` itself
+- A worker node labeled `linux-worker` with `bash`, `git`, and passwordless `sudo` scoped to a couple of fixed helper scripts (see below) and to `issue-local-cert.sh` itself
 - Two one-time helper scripts placed on the worker outside this repo (they're CI infrastructure, not part of the tool):
   - `/usr/local/bin/jenkins-nginx-cert-prereqs.sh` - installs `openssl`, `nginx`, `shellcheck`, and bootstraps a local CA if one doesn't already exist
   - `/usr/local/bin/jenkins-nginx-cert-cleanup.sh` - removes the throwaway test domain's cert and Nginx site after the optional issuance test
