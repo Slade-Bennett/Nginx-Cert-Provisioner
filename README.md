@@ -16,8 +16,8 @@ A bash script that automates local CA certificate issuance and Nginx reverse pro
 ## Prerequisites
 
 - A local CA already set up at `/etc/local-ca/` with:
-  - `rootCA.crt.pem` - CA certificate
-  - `private/rootCA.key.pem` - CA private key
+  - `rootCA.crt` - CA certificate
+  - `private/rootCA.key` - CA private key
 - Nginx installed with `sites-available` and `sites-enabled` structure
 - Root access
 
@@ -52,7 +52,7 @@ Edit the variables at the top of the script:
 | `DAYS_VALID` | `825` | Certificate validity (825 = Apple max) |
 | `COUNTRY` | `US` | Certificate country code |
 | `STATE` | `Homelab` | Certificate state/province |
-| `ORG` | `Homelab Services` | Certificate organization |
+| `ORG` | `Slade Services` | Certificate organization |
 
 ## Output
 
@@ -60,12 +60,25 @@ For a domain like `uptimekuma.local`, the script creates:
 
 ```
 /etc/local-ca/issued/uptimekuma.local/
-├── uptimekuma.local.key.pem    # Private key
-└── uptimekuma.local.crt.pem    # Signed certificate
+├── uptimekuma.local.key    # Private key
+└── uptimekuma.local.crt    # Signed certificate
 
 /etc/nginx/sites-available/uptimekuma.local    # Nginx config
 /etc/nginx/sites-enabled/uptimekuma.local      # Symlink
 ```
+
+## Continuous Integration (Jenkins)
+
+This repo includes a `Jenkinsfile` that lints and smoke-tests the script on every push. It expects:
+
+- A worker node labeled `linux-worker` with `bash`, `git`, and passwordless `sudo` scoped to a couple of fixed helper scripts (see below) and to `issue-local-cert.sh` itself
+- Two one-time helper scripts placed on the worker outside this repo (they're CI infrastructure, not part of the tool):
+  - `/usr/local/bin/jenkins-nginx-cert-prereqs.sh` - installs `openssl`, `nginx`, `shellcheck`, and bootstraps a local CA if one doesn't already exist
+  - `/usr/local/bin/jenkins-nginx-cert-cleanup.sh` - removes the throwaway test domain's cert and Nginx site after the optional issuance test
+
+Pipeline stages: **Install Prerequisites** (idempotent, safe to rerun) → **Set Permissions** → **Lint** (`bash -n` + `shellcheck`) → **Smoke Test** (`--help`, non-destructive) → optional **Issuance Test**, gated behind a `RUN_ISSUANCE_TEST` build parameter, which actually runs the script against a throwaway domain and cleans up afterward.
+
+The issuance test is opt-in rather than automatic on every push, since it writes a real cert and Nginx site config on the worker each time it runs.
 
 ## 📜 License
 
