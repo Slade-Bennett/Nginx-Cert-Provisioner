@@ -24,8 +24,29 @@ pipeline {
             steps {
                 // Idempotent: installs openssl/nginx/shellcheck and bootstraps
                 // a local CA on this worker if one doesn't already exist.
-                // See README.md > Continuous Integration for the script contents.
-                sh 'sudo /usr/local/bin/jenkins-nginx-cert-prereqs.sh'
+                // Fully self-contained — no scripts need to exist on the worker
+                // ahead of time, just root access via sudo.
+                sh '''
+                    set -e
+                    sudo apt-get update
+                    sudo apt-get install -y openssl nginx shellcheck
+
+                    sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+
+                    if [ ! -f /etc/local-ca/rootCA.crt ]; then
+                        echo "No local CA found - generating one for this worker."
+                        sudo mkdir -p /etc/local-ca/private
+                        sudo chmod 700 /etc/local-ca/private
+                        sudo openssl genrsa -out /etc/local-ca/private/rootCA.key 4096
+                        sudo openssl req -x509 -new -nodes \\
+                            -key /etc/local-ca/private/rootCA.key \\
+                            -sha256 -days 3650 \\
+                            -out /etc/local-ca/rootCA.crt \\
+                            -subj "/C=US/ST=Homelab/O=Slade Services/CN=Homelab Local CA"
+                    else
+                        echo "Local CA already present - skipping generation."
+                    fi
+                '''
             }
         }
 
@@ -60,7 +81,12 @@ pipeline {
             }
             post {
                 always {
-                    sh 'sudo /usr/local/bin/jenkins-nginx-cert-cleanup.sh "$TEST_DOMAIN"'
+                    sh '''
+                        sudo rm -rf "/etc/local-ca/issued/$TEST_DOMAIN"
+                        sudo rm -f "/etc/nginx/sites-available/$TEST_DOMAIN" "/etc/nginx/sites-enabled/$TEST_DOMAIN"
+                        sudo nginx -t
+                        sudo systemctl reload nginx
+                    '''
                 }
             }
         }
